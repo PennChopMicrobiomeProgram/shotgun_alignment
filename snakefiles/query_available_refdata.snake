@@ -1,0 +1,20 @@
+GENOME_GROUPS = ["bacteria"]
+REFSEQ_URL = "ftp://ftp.ncbi.nlm.nih.gov/genomes/refseq"
+
+rule all:
+    input: expand("{group}_selected_assemblies.txt", group=GENOME_GROUPS)
+
+rule download_assembly_summary:
+    output: "{group}_assembly_summary.txt"
+    shell:
+        "curl {REFSEQ_URL}/{wildcards.group}/assembly_summary.txt > {output}"
+
+rule download_assembly_stats:
+    input: "{group}_assembly_summary.txt"
+    output: "{group}_assembly_data.txt"
+    shell: "python download_assembly_stats.py < {input} > {output}"
+
+rule select_reference_genomes:
+    input: "{group}_assembly_summary.txt"
+    output: "{group}_selected_assemblies.txt"
+    script: "../select_bacterial_refs.R"

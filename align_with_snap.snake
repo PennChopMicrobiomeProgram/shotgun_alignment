@@ -1,0 +1,95 @@
+import glob
+
+ASSEMBLY_IDS = []
+with open("genomes.txt") as f:
+    for line in f:
+        line = line.rstrip()
+        assembly_id, species = line.split("\t")
+        ASSEMBLY_IDS.append(assembly_id)
+print(ASSEMBLY_IDS)
+
+R1_FNAMES = glob.glob("input_data/*R1.fastq")
+SAMPLE_IDS = [
+    x.replace("input_data/", "").replace("_R1.fastq", "")
+    for x in R1_FNAMES]
+print(SAMPLE_IDS)
+
+TARGET_FPS = [
+    "merged_sam_data/{0}.taxa.counts.reduced".format(s)
+    for s in SAMPLE_IDS]
+print(TARGET_FPS)
+
+rule all:
+    input: TARGET_FPS
+
+rule unzip_genome:
+    input: "genomes/{assembly_id}/{assembly_id}_genomic.fna.gz"
+    output: temp("genomes/{assembly_id}/{assembly_id}_genomic.fna")
+    shell: "gunzip -c {input} > {output}"
+
+rule clean_genome:
+    input: "genomes/{assembly_id}/{assembly_id}_genomic.fna"
+    output: "genomes/{assembly_id}/{assembly_id}_genomic_cleaned.fna"
+    shell: "python clean_fasta.py < {input} > {output}"
+
+rule snap_index:
+    input: "genomes/{assembly_id}/{assembly_id}_genomic_cleaned.fna"
+    output:
+        genome="genomes/{assembly_id}/Genome",
+        genomeindex="genomes/{assembly_id}/GenomeIndex",
+        indexhash="genomes/{assembly_id}/GenomeIndexHash",
+        overflow="genomes/{assembly_id}/OverflowTable"
+    params: outputdir="genomes/{assembly_id}/"
+    threads: 1
+    shell: "snap-aligner index {input} {params.outputdir} -t{threads}"
+
+rule snap_align_paired:
+    input:
+        read1="input_data/{sample_id}_R1.fastq",
+        read2="input_data/{sample_id}_R2.fastq",
+        genome="genomes/{assembly_id}/Genome",
+        genomeindex="genomes/{assembly_id}/GenomeIndex",
+        indexhash="genomes/{assembly_id}/GenomeIndexHash",
+        overflow="genomes/{assembly_id}/OverflowTable"
+    output: "sam_data/{sample_id}/{assembly_id}.sammin"
+    params: indexdir="genomes/{assembly_id}"
+    shell:
+        "snap-aligner paired {params.indexdir} {input.read1} {input.read2} "
+        "-o -sam - | "
+        "python convert_sam.py {wildcards.assembly_id} > {output}"
+
+SAMMIN_FPS = [
+    "sam_data/{0}/{1}.sammin".format(s, g)
+    for s in SAMPLE_IDS
+    for g in ASSEMBLY_IDS]
+print(SAMMIN_FPS)
+        
+rule merge_alignments:
+    input: SAMMIN_FPS
+    output: "merged_sam_data/{sample_id}.sammin.unsorted"
+    shell:
+        "mkdir -p merged_sam_data; "
+        "rm -f {output}; for FP in {input}; do cat $FP >> {output}; done"
+
+rule sort_alignments:
+    input: "merged_sam_data/{sample_id}.sammin.unsorted"
+    output: "merged_sam_data/{sample_id}.sammin"
+    shell: "sort < {input} > {output}"
+
+rule get_taxa:
+    input: "merged_sam_data/{sample_id}.sammin"
+    output: "merged_sam_data/{sample_id}.taxa"
+    shell: "python resolve_taxa.py < {input} > {output}"
+
+rule count_taxa:
+    input: "merged_sam_data/{sample_id}.taxa"
+    output: "merged_sam_data/{sample_id}.taxa.counts"
+    shell: "cut -f 2- {input} | sort | uniq -c > {output}"
+
+rule reduce_multitaxa:
+    input: "merged_sam_data/{sample_id}.taxa.counts"
+    output: "merged_sam_data/{sample_id}.taxa.counts.reduced"
+    shell: "python apply_lca.py < {input} > {output}"
+
+rule clean:
+    shell: "rm -rf merged_sam_data"

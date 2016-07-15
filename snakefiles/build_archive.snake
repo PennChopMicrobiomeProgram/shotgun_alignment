@@ -1,0 +1,59 @@
+from snakemake.utils import update_config
+
+
+def get_fna_url(ftp_path):
+    long_assembly_id = ftp_path.split("/")[-1]
+    return "{0}/{1}_genomic.fna.gz".format(ftp_path, long_assembly_id)
+
+
+def parse_selected_assemblies(f):
+    keys = next(f).rstrip().split("\t")
+    for line in f:
+        line = line.rstrip()
+        if not line:
+            continue
+        vals = line.split("\t")
+        print(list(zip(keys,vals)))
+        yield dict(zip(keys, vals))
+
+
+default_config = {
+    "biodata_dir": "~/BioData",
+    "version": "0.0.1",
+    "selected_assemblies": "bacteria_selected_assemblies.txt",
+}
+update_config(default_config, config)
+config = default_config
+
+
+ASSEMBLIES = {}
+with open(config["selected_assemblies"]) as f:
+    for assembly in parse_selected_assemblies(f):
+        ASSEMBLIES[assembly["assembly_accession"]] = assembly
+ASSEMBLY_FPS = []
+for a in ASSEMBLIES.values():
+    ASSEMBLY_FPS.append(
+        "bacteria/{0}/{0}_genomic.fna.gz".format(
+            a["assembly_accession"]))
+TARGET_FP = "bacteria_reference_genomes_{0}.tgz".format(
+    config["version"])
+
+
+rule all:
+    input: TARGET_FP
+
+
+rule zip_genomes:
+    input: ASSEMBLY_FPS
+    output: TARGET_FP
+    shell: "tar -cvzf {output} bacteria"
+
+
+rule download_fna:
+    output: "bacteria/{assembly_id}/{assembly_id}_genomic.fna.gz"
+    run:
+        assembly = ASSEMBLIES[wildcards.assembly_id]
+        assembly_url = get_fna_url(assembly["ftp_path"])
+        shell(
+            "mkdir -p bacteria/{wildcards.assembly_id};"
+            "curl " + assembly_url + " > {output}")

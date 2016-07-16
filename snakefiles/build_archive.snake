@@ -13,7 +13,6 @@ def parse_selected_assemblies(f):
         if not line:
             continue
         vals = line.split("\t")
-        print(list(zip(keys,vals)))
         yield dict(zip(keys, vals))
 
 
@@ -56,4 +55,5 @@ rule download_fna:
         assembly_url = get_fna_url(assembly["ftp_path"])
         shell(
             "mkdir -p bacteria/{wildcards.assembly_id};"
-            "curl " + assembly_url + " > {output}")
+	    "curl --connect-timeout 10.0 --retry 10 " + assembly_url + " > {output}"
+	    )

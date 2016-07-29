@@ -1,95 +1,165 @@
 import glob
+import pathlib
+import random
 
-ASSEMBLY_IDS = []
-with open("genomes.txt") as f:
-    for line in f:
-        line = line.rstrip()
-        assembly_id, species = line.split("\t")
-        ASSEMBLY_IDS.append(assembly_id)
+from snakemake.utils import update_config
+
+def get_assembly_ids_from_dirnames(assembly_dir):
+    dir_path = pathlib.Path(assembly_dir)
+    return [x.name for x in dir_path.iterdir() if x.is_dir()]
+
+
+def get_sample_ids_from_filenames(input_dir, suffix):
+    dir_path = pathlib.Path(input_dir)
+    input_file_paths = [x for x in dir_path.iterdir() if x.is_file()]
+    suffix_paths = [x for x in input_file_paths if x.name.endswith(suffix)]
+    return [x.name.replace(suffix, "") for x in suffix_paths]
+
+
+default_config = {
+    "taxonomy_dir": "/home/kyle/Development/shotgun_alignment/",
+    "assembly_dir": "/home/kyle/BioData/shotgun_reference_genomes/bacteria",
+    "version": "0.0.1",
+    "input_dir": "/home/kyle/input_data",
+    "work_dir": "/home/kyle/work_data",
+    "output_dir": "/home/kyle/output_data",
+    "testrun": False,
+}
+update_config(default_config, config)
+config = default_config
+
+
+# Compute static values to use in rules
+ASSEMBLY_IDS = get_assembly_ids_from_dirnames(config["assembly_dir"])
+SAMPLE_IDS = get_sample_ids_from_filenames(config["input_dir"], "_R1.fastq.gz")
+if config["testrun"]:
+    ASSEMBLY_IDS = [ASSEMBLY_IDS[idx] for idx in [36, 578, 1893, 2487, 4389]]
 print(ASSEMBLY_IDS)
-
-R1_FNAMES = glob.glob("input_data/*R1.fastq")
-SAMPLE_IDS = [
-    x.replace("input_data/", "").replace("_R1.fastq", "")
-    for x in R1_FNAMES]
 print(SAMPLE_IDS)
 
-TARGET_FPS = [
-    "merged_sam_data/{0}.taxa.counts.reduced".format(s)
-    for s in SAMPLE_IDS]
-print(TARGET_FPS)
+
+
+TARGET_FPS = expand(
+    "{out}/{sample_id}.taxa.counts.reduced.standardized",
+    out=config["output_dir"], sample_id=SAMPLE_IDS)
 
 rule all:
     input: TARGET_FPS
 
-rule unzip_genome:
-    input: "genomes/{assembly_id}/{assembly_id}_genomic.fna.gz"
-    output: temp("genomes/{assembly_id}/{assembly_id}_genomic.fna")
-    shell: "gunzip -c {input} > {output}"
-
-rule clean_genome:
-    input: "genomes/{assembly_id}/{assembly_id}_genomic.fna"
-    output: "genomes/{assembly_id}/{assembly_id}_genomic_cleaned.fna"
-    shell: "python clean_fasta.py < {input} > {output}"
-
-rule snap_index:
-    input: "genomes/{assembly_id}/{assembly_id}_genomic_cleaned.fna"
+rule standardize_taxa:
+    input:
+        config["work_dir"] + "/{sample_id}.taxa.counts.reduced"
     output:
-        genome="genomes/{assembly_id}/Genome",
-        genomeindex="genomes/{assembly_id}/GenomeIndex",
-        indexhash="genomes/{assembly_id}/GenomeIndexHash",
-        overflow="genomes/{assembly_id}/OverflowTable"
-    params: outputdir="genomes/{assembly_id}/"
-    threads: 1
-    shell: "snap-aligner index {input} {params.outputdir} -t{threads}"
+        config["output_dir"] + "/{sample_id}.taxa.counts.reduced.standardized"
+    shell:
+        "python standardize_taxa.py {config[taxonomy_dir]} < {input} > {output}"
+    
+           
+rule reduce_multitaxa:
+    input:
+        config["work_dir"] + "/{sample_id}.taxa.counts"
+    output:
+        config["work_dir"] + "/{sample_id}.taxa.counts.reduced"
+    shell:
+        "python apply_lca.py {config[taxonomy_dir]} < {input} > {output}"
+
+rule count_taxa:
+    input:
+        config["work_dir"] + "/merged_sam_data/{sample_id}.taxa"
+    output:
+        config["work_dir"] + "/{sample_id}.taxa.counts"
+    shell:
+        "cut -f 2- {input} | sort | uniq -c > {output}"
+
+rule get_taxa:
+    input:
+        config["work_dir"] + "/merged_sam_data/{sample_id}.sammin"
+    output:
+        config["work_dir"] + "/merged_sam_data/{sample_id}.taxa"
+    params:
+        config["assembly_dir"] + "/assembly_summary.txt"
+    shell:
+        "python resolve_taxa.py {config[assembly_dir]}/assembly_summary.txt "
+        "< {input} > {output}"
+
+rule sort_alignments:
+    input:
+        config["work_dir"] + "/merged_sam_data/{sample_id}.sammin.unsorted"
+    output:
+        config["work_dir"] + "/merged_sam_data/{sample_id}.sammin"
+    shell:
+        "sort < {input} > {output}"
+
+SAMPLE_ALIGNMENT_FPS = [
+    config["work_dir"] + "/sam_data/{{sample_id}}/{0}.sammin".format(a)
+    for a in ASSEMBLY_IDS]
+
+rule merge_alignments:
+    input:
+        SAMPLE_ALIGNMENT_FPS
+    output:
+        config["work_dir"] + "/merged_sam_data/{sample_id}.sammin.unsorted"
+    shell:
+        "mkdir -p merged_sam_data; "
+        "rm -f {output}; "
+        "for FP in {input}; do "
+        "    cat $FP >> {output}; "
+        "done"
 
 rule snap_align_paired:
     input:
-        read1="input_data/{sample_id}_R1.fastq",
-        read2="input_data/{sample_id}_R2.fastq",
-        genome="genomes/{assembly_id}/Genome",
-        genomeindex="genomes/{assembly_id}/GenomeIndex",
-        indexhash="genomes/{assembly_id}/GenomeIndexHash",
-        overflow="genomes/{assembly_id}/OverflowTable"
-    output: "sam_data/{sample_id}/{assembly_id}.sammin"
-    params: indexdir="genomes/{assembly_id}"
+        read1=config["input_dir"] + "/{sample_id}_R1.fastq",
+        read2=config["input_dir"] + "/{sample_id}_R2.fastq",
+        genome=config["assembly_dir"] + "/{assembly_id}/Genome",
+        genomeindex=config["assembly_dir"] + "/{assembly_id}/GenomeIndex",
+        indexhash=config["assembly_dir"] + "/{assembly_id}/GenomeIndexHash",
+        overflow=config["assembly_dir"] + "/{assembly_id}/OverflowTable"
+    output:
+        config["work_dir"] + "/sam_data/{sample_id}/{assembly_id}.sammin"
+    params:
+        indexdir=config["assembly_dir"] + "/{assembly_id}"
     shell:
         "snap-aligner paired {params.indexdir} {input.read1} {input.read2} "
         "-o -sam - | "
         "python convert_sam.py {wildcards.assembly_id} > {output}"
 
-SAMMIN_FPS = [
-    "sam_data/{0}/{1}.sammin".format(s, g)
-    for s in SAMPLE_IDS
-    for g in ASSEMBLY_IDS]
-print(SAMMIN_FPS)
-        
-rule merge_alignments:
-    input: SAMMIN_FPS
-    output: "merged_sam_data/{sample_id}.sammin.unsorted"
+rule unzip_fastq:
+    input:
+        "{sample_id}_{read_idx}.fastq.gz",
+    output:
+        "{sample_id}_{read_idx}.fastq"
     shell:
-        "mkdir -p merged_sam_data; "
-        "rm -f {output}; for FP in {input}; do cat $FP >> {output}; done"
+        "gunzip -c {input} > {output}"
+        
+rule snap_index:
+    input:
+        config["assembly_dir"] + "/{assembly_id}/{assembly_id}_genomic_clean.fna"
+    output:
+        genome=temp(config["assembly_dir"] + "/{assembly_id}/Genome"),
+        genomeindex=temp(config["assembly_dir"] + "/{assembly_id}/GenomeIndex"),
+        indexhash=temp(config["assembly_dir"] + "/{assembly_id}/GenomeIndexHash"),
+        overflow=temp(config["assembly_dir"] + "/{assembly_id}/OverflowTable")
+    params:
+        indexdir=config["assembly_dir"] + "/{assembly_id}"
+    threads: 1
+    shell:
+        "snap-aligner index {input} {params.indexdir} -t{threads}"
 
-rule sort_alignments:
-    input: "merged_sam_data/{sample_id}.sammin.unsorted"
-    output: "merged_sam_data/{sample_id}.sammin"
-    shell: "sort < {input} > {output}"
+rule clean_genome:
+    input:
+        config["assembly_dir"] + "/{assembly_id}/{assembly_id}_genomic.fna"
+    output:
+        temp(config["assembly_dir"] + "/{assembly_id}/{assembly_id}_genomic_clean.fna")
+    shell:
+        "python clean_fasta.py < {input} > {output}"
 
-rule get_taxa:
-    input: "merged_sam_data/{sample_id}.sammin"
-    output: "merged_sam_data/{sample_id}.taxa"
-    shell: "python resolve_taxa.py < {input} > {output}"
-
-rule count_taxa:
-    input: "merged_sam_data/{sample_id}.taxa"
-    output: "merged_sam_data/{sample_id}.taxa.counts"
-    shell: "cut -f 2- {input} | sort | uniq -c > {output}"
-
-rule reduce_multitaxa:
-    input: "merged_sam_data/{sample_id}.taxa.counts"
-    output: "merged_sam_data/{sample_id}.taxa.counts.reduced"
-    shell: "python apply_lca.py < {input} > {output}"
+rule unzip_genome:
+    input:
+        config["assembly_dir"] + "/{assembly_id}/{assembly_id}_genomic.fna.gz"
+    output:
+        temp(config["assembly_dir"] + "/{assembly_id}/{assembly_id}_genomic.fna")
+    shell:
+        "gunzip -c {input} > {output}"
 
 rule clean:
-    shell: "rm -rf merged_sam_data"
+    shell: "rm -rf {config[work_dir]}/*"

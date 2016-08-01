@@ -32,7 +32,7 @@ with open(config["selected_assemblies"]) as f:
 ASSEMBLY_FPS = []
 for a in ASSEMBLIES.values():
     ASSEMBLY_FPS.append(
-        "bacteria/{0}/{0}_genomic.fna.gz".format(
+        "bacteria/{0}_genomic.fna.gz".format(
             a["assembly_accession"]))
 TARGET_FP = "bacteria_reference_genomes_{0}.tgz".format(
     config["version"])

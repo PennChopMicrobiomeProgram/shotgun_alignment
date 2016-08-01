@@ -1,3 +1,4 @@
+import itertools
 import glob
 import pathlib
 import random
@@ -24,16 +25,28 @@ default_config = {
     "work_dir": "/home/kyle/work_data",
     "output_dir": "/home/kyle/output_data",
     "testrun": False,
+    "split_db": 10,
 }
 update_config(default_config, config)
 config = default_config
 
 
+def partition_assemblies(assembly_ids, num_groups):
+    buckets = dict((x, []) for x in range(num_groups))
+    bucket_idx = itertools.cycle(range(num_groups))
+    for n, a in zip(bucket_idx, assembly_ids):
+    	buckets[n].append(a)
+    return buckets
+
+
 # Compute static values to use in rules
 ASSEMBLY_IDS = get_assembly_ids_from_dirnames(config["assembly_dir"])
-SAMPLE_IDS = get_sample_ids_from_filenames(config["input_dir"], "_R1.fastq.gz")
 if config["testrun"]:
     ASSEMBLY_IDS = [ASSEMBLY_IDS[idx] for idx in [36, 578, 1893, 2487, 4389]]
+    config["split_db"] = 2
+
+ASSEMBLY_GROUPS = partition_assemblies(ASSEMBLY_IDS, config["split_db"])
+SAMPLE_IDS = get_sample_ids_from_filenames(config["input_dir"], "_R1.fastq.gz")
 print(ASSEMBLY_IDS)
 print(SAMPLE_IDS)
 
@@ -145,6 +158,9 @@ rule snap_index:
     shell:
         "snap-aligner index {input} {params.indexdir} -t{threads}"
 
+
+
+        
 rule clean_genome:
     input:
         config["assembly_dir"] + "/{assembly_id}/{assembly_id}_genomic.fna"

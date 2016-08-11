@@ -1,12 +1,7 @@
-import argparse
 import sys
 
-def main(argv=None):
-    p = argparse.ArgumentParser()
-    p.add_argument("assembly_id")
-    args = p.parse_args(argv)
-    assembly_id = args.assembly_id
 
+def main(argv=None):
     for line in sys.stdin:
         if line.startswith("@"):
             continue
@@ -19,7 +14,9 @@ def main(argv=None):
         cigar = vals[5]
         edit_dist = get_edit_dist(vals[11:])
         line_out = "\t".join((
-            query_id, assembly_id, ref_id, ref_pos, cigar, edit_dist))
+            # Column numbers:
+            #      0       1        2      3          4
+            query_id, ref_id, ref_pos, cigar, edit_dist))
         sys.stdout.write(line_out)
         sys.stdout.write("\n")
 

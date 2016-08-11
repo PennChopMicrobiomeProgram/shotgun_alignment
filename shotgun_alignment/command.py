@@ -50,20 +50,27 @@ def apply_lca_main(argv=None):
         sys.stdout.write("\n")
 
 
-from shotgun_alignment.sam import parse_sammin, group_taxids
-from shotgun_alignment.ncbi_refseq import parse_assembly_summary
+from shotgun_alignment.sam import parse_sammin, group_refids
+from shotgun_alignment.ncbi_refseq import (
+    parse_assembly_summary, parse_refid_summary,
+    )
 
 
 def resolve_taxa_main(argv=None):
     p = argparse.ArgumentParser(argv)
+    # RefID -> AssemblyID
+    p.add_argument("refid_summary_file", type=argparse.FileType("r"))
+    # AsemblyID -> TaxonID
     p.add_argument("assembly_summary_file", type=argparse.FileType("r"))
     args = p.parse_args(argv)
 
+    assembly_ids = dict(parse_refid_summary(args.refid_summary_file))
     tax_ids = dict(parse_assembly_summary(args.assembly_summary_file))
 
-    for read_id, assembly_ids in group_taxids(parse_sammin(sys.stdin)):
-        read_tax_ids = [tax_ids[a] for a in assembly_ids]
+    for read_id, read_ref_ids in group_refids(parse_sammin(sys.stdin)):
+        read_assembly_ids = [assembly_ids[r] for r in read_ref_ids]
+        read_taxon_ids = [tax_ids[a] for a in read_assembly_ids]
         sys.stdout.write(read_id)
         sys.stdout.write("\t")
-        sys.stdout.write("\t".join(read_tax_ids))
+        sys.stdout.write("\t".join(read_taxon_ids))
         sys.stdout.write("\n")

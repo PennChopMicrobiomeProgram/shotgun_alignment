@@ -1,3 +1,11 @@
+def parse_refid_summary(f):
+    for line in f:
+        vals = line.strip().split("\t")
+        assembly_id = vals[0]
+        ref_id = vals[1]
+        yield ref_id, assembly_id
+
+
 def parse_assembly_summary(f):
     for line in f:
         if line.startswith("#"):

@@ -1,0 +1,99 @@
+import pathlib
+
+from snakemake.utils import update_config
+
+from shotgun_alignment.assembly import partition_assemblies
+
+def get_assembly_ids_from_dirnames(assembly_dir):
+    dir_path = pathlib.Path(assembly_dir)
+    return [x.name for x in dir_path.iterdir() if x.is_dir()]
+
+default_config = {
+    "assembly_dir": "/home/kyle/BioData/shotgun_reference_genomes/bacteria",
+    "index_dir": "/home/kyle/index_data",
+    "testrun": False,
+    "split_db": 10,
+}
+update_config(default_config, config)
+config = default_config
+
+
+
+# Compute static values to use in rules
+ASSEMBLY_IDS = get_assembly_ids_from_dirnames(config["assembly_dir"])
+if config["testrun"]:
+    ASSEMBLY_IDS = ASSEMBLY_IDS[:20]
+ASSEMBLY_GROUPS = partition_assemblies(ASSEMBLY_IDS, config["split_db"])
+INDEX_FILENAMES = [
+    "Genome",
+    "GenomeIndex",
+    "GenomeIndexHash",
+    "OverflowTable",
+]
+PARTITION_INDEX_FPS = expand(
+    config["index_dir"] + "/bacteria_{partition_id}/{index_fn}",
+    partition_id=ASSEMBLY_GROUPS.keys(),
+    index_fn=INDEX_FILENAMES,
+)
+REFID_MAP_FP = config["index_dir"] + "/partition_refids.txt"
+
+rule all:
+    input: PARTITION_INDEX_FPS + [REFID_MAP_FP]
+
+rule map_refids:
+    input:
+        config["assembly_dir"]
+    output:
+        REFID_MAP_FP
+    shell:
+        "python map_refids.py {input} > {output}"
+
+rule snap_index:
+    input:
+        config["index_dir"] + "/bacteria_{partition_id}/bacteria_{partition_id}.fna"
+    output:
+        genome=config["index_dir"] + "/bacteria_{partition_id}/Genome",
+        genomeindex=config["index_dir"] + "/bacteria_{partition_id}/GenomeIndex",
+        indexhash=config["index_dir"] + "/bacteria_{partition_id}/GenomeIndexHash",
+        overflow=config["index_dir"] + "/bacteria_{partition_id}/OverflowTable"
+    params:
+        indexdir=config["index_dir"] + "/bacteria_{partition_id}"
+    threads: 8
+    shell:
+        "mkdir -p " + config["index_dir"] + "; " +
+        "snap-aligner index {input} {params.indexdir} " +
+        "-t{threads} -s 24 -locationSize 5"
+
+rule partition_genomes:
+    input:
+        lambda wildcards: expand(
+            config["assembly_dir"] + "/{assembly_id}/{assembly_id}_genomic_clean.fna",
+            assembly_id=ASSEMBLY_GROUPS[wildcards.partition_id],
+        )
+    output:
+        temp(config["index_dir"] + "/bacteria_{partition_id}/bacteria_{partition_id}.fna")
+    run:
+        for n, fp in enumerate(input):
+            if n == 0:
+                os.system("cat {0} > {1}".format(fp, output))
+            else:
+                os.system("cat {0} >> {1}".format(fp, output))
+
+rule clean_genome:
+    input:
+        config["assembly_dir"] + "/{assembly_id}/{assembly_id}_genomic.fna"
+    output:
+        temp(config["assembly_dir"] + "/{assembly_id}/{assembly_id}_genomic_clean.fna")
+    shell:
+        "python clean_fasta.py < {input} > {output}"
+
+rule unzip_genome:
+    input:
+        config["assembly_dir"] + "/{assembly_id}/{assembly_id}_genomic.fna.gz"
+    output:
+        temp(config["assembly_dir"] + "/{assembly_id}/{assembly_id}_genomic.fna")
+    shell:
+        "gunzip -c {input} > {output}"
+
+rule clean:
+    shell: "rm -rf {config[index_dir]}/*"

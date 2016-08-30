@@ -26,15 +26,24 @@ update_config(default_config, config)
 config = default_config
 
 
+def iter_partition_ids():
+    partition_prefix = "bacteria_"
+    index_dir_path = pathlib.Path(config["index_dir"])
+    for p in index_dir_path.iterdir():
+        if p.name.startswith(partition_prefix):
+            partition_id = p.name.replace(partition_prefix, "")
+            yield partition_id
+
 # Compute static values to use in rules
-PARTITION_IDS = [str(x) for x in range(config["split_db"])]
-SAMPLE_IDS = get_sample_ids_from_filenames(config["input_dir"], "_R1.fastq.gz")
+PARTITION_IDS = list(iter_partition_ids())
+SAMPLE_IDS = get_sample_ids_from_filenames(config["input_dir"], "_R1.fastq")
 
 
 
 TARGET_FPS = expand(
     "{out}/{sample_id}.taxa.counts.reduced.standardized",
     out=config["output_dir"], sample_id=SAMPLE_IDS)
+print(TARGET_FPS)
 
 rule all:
     input: TARGET_FPS
@@ -51,7 +60,7 @@ rule reduce_multitaxa:
     input:
         config["work_dir"] + "/{sample_id}.taxa.counts"
     output:
-        config["work_dir"] + "/{sample_id}.taxa.counts.reduced"
+        temp(config["work_dir"] + "/{sample_id}.taxa.counts.reduced")
     shell:
         "apply_lca {config[taxonomy_dir]} < {input} > {output}"
 
@@ -59,7 +68,7 @@ rule count_taxa:
     input:
         config["work_dir"] + "/merged_sam_data/{sample_id}.taxa"
     output:
-        config["work_dir"] + "/{sample_id}.taxa.counts"
+        temp(config["work_dir"] + "/{sample_id}.taxa.counts")
     shell:
         "cut -f 2- {input} | sort | uniq -c > {output}"
 
@@ -67,7 +76,7 @@ rule get_taxa:
     input:
         config["work_dir"] + "/merged_sam_data/{sample_id}.sammin"
     output:
-        config["work_dir"] + "/merged_sam_data/{sample_id}.taxa"
+        temp(config["work_dir"] + "/merged_sam_data/{sample_id}.taxa")
     shell:
         "resolve_taxa "
         "{config[index_dir]}/partition_refids.txt "
@@ -90,7 +99,7 @@ rule merge_alignments:
             partition_id=PARTITION_IDS,
         )
     output:
-        config["work_dir"] + "/merged_sam_data/{sample_id}.sammin.unsorted"
+        temp(config["work_dir"] + "/merged_sam_data/{sample_id}.sammin.unsorted")
     shell:
         "mkdir -p merged_sam_data; "
         "rm -f {output}; "
@@ -107,7 +116,7 @@ rule snap_align_paired:
         indexhash=config["index_dir"] + "/bacteria_{partition_id}/GenomeIndexHash",
         overflow=config["index_dir"] + "/bacteria_{partition_id}/OverflowTable"
     output:
-        config["work_dir"] + "/sam_data/{sample_id}/bacteria_{partition_id}.sammin"
+        temp(config["work_dir"] + "/sam_data/{sample_id}/bacteria_{partition_id}.sammin")
     params:
         indexdir=config["index_dir"] + "/bacteria_{partition_id}"
     threads: 8
@@ -121,7 +130,7 @@ rule unzip_fastq:
     input:
         config["input_dir"] + "/{sample_id}_{read_idx}.fastq.gz",
     output:
-        config["input_dir"] + "/{sample_id}_{read_idx}.fastq"
+        temp(config["input_dir"] + "/{sample_id}_{read_idx}.fastq")
     shell:
         "gunzip -c {input} > {output}"
 

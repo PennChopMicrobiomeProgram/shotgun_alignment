@@ -1,5 +1,7 @@
 import argparse
 import collections
+import gzip
+import pathlib
 import sys
 
 from shotgun_alignment.ncbi_taxonomy import (
@@ -109,3 +111,25 @@ def get_edit_dist(vals):
         if val.startswith("NM:i:"):
             return val[5:]
     return "NA"
+
+
+def map_refids_main(argv=None):
+    p = argparse.ArgumentParser()
+    p.add_argument("fasta_dir")
+    args = p.parse_args(argv)
+
+    fasta_dir = pathlib.Path(args.fasta_dir)
+
+    fasta_fps = fasta_dir.glob("**/*.fna")
+    for fp in fasta_fps:
+        assembly_id = fp.name.replace("_genomic.fna", "")
+        with fp.open() as f:
+            for seq_id, seq in parse_fasta(f):
+                sys.stdout.write("{0}\t{1}\n".format(assembly_id, seq_id))
+
+    gzipped_fasta_fps = fasta_dir.glob("**/*.fna.gz")
+    for fp in gzipped_fasta_fps:
+        assembly_id = fp.name.replace("_genomic.fna.gz", "")
+        with gzip.open(str(fp), "rt") as f:
+            for seq_id, seq in parse_fasta(f):
+                sys.stdout.write("{0}\t{1}\n".format(assembly_id, seq_id))

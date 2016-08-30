@@ -122,7 +122,7 @@ rule snap_align_paired:
         "snap-aligner paired {params.indexdir} {input.read1} {input.read2} "
         "-t {threads} -D 5 -om 5 -omax 100 "
         "-o -sam - | "
-        "python convert_sam.py > {output}"
+        "convert_sam > {output}"
 
 rule unzip_fastq:
     input:

@@ -41,7 +41,7 @@ rule map_refids:
     output:
         REFID_MAP_FP
     shell:
-        "python map_refids.py {input} > {output}"
+        "map_refids {input} > {output}"
 
 rule snap_index:
     input:
@@ -80,7 +80,7 @@ rule clean_genome:
     output:
         temp(config["assembly_dir"] + "/{assembly_id}/{assembly_id}_genomic_clean.fna")
     shell:
-        "python clean_fasta.py < {input} > {output}"
+        "clean_fasta < {input} > {output}"
 
 rule unzip_genome:
     input:

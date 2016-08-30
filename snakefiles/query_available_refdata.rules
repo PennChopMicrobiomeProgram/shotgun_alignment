@@ -12,7 +12,7 @@ rule download_assembly_summary:
 rule download_assembly_stats:
     input: "{group}_assembly_summary.txt"
     output: "{group}_assembly_data.txt"
-    shell: "python download_assembly_stats.py < {input} > {output}"
+    shell: "download_assembly_stats < {input} > {output}"
 
 rule select_reference_genomes:
     input: "{group}_assembly_summary.txt"

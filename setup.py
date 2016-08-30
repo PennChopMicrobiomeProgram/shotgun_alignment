@@ -17,5 +17,6 @@ setup(
         'clean_fasta = shotgun_alignment.command:clean_fasta_main',
         'convert_sam = shotgun_alignment.command:convert_sam_main',
         'download_assembly_stats = shotgun_alignment.download:main',
+        'map_refids = shotgun_alignment.command:map_refids_main',
     ]},
 )

@@ -28,11 +28,24 @@ After the curation is finished, we use the snakemake file
 `build_refdata_archive.snake` to build a deployable archive of genomes
 and other data sources needed to process the reads.
 
-How to deploy
-How to configure
-How to arrange input data
+How to deploy the reference set
+---------
 
-accepts quality-filtered FASTQ data
+We begin by transferring the archive to the target computer and
+unzipping.
 
-How to run on a single machine
-How to run on a cluster
+The index files are prepared from the set of reference genomes using
+the snakemake file `index_for_multialign.rules`.  This workflow
+partitions the genomes into a small number of reference databases,
+given by the configuration variable `split_db`.  It expects the
+unzipped reference genomes to be in the directory `assembly_dir` and
+will create the index files in the directory `index_dir`.
+
+How to align input reads
+---------
+
+We are now ready to align input sequence reads.  For this, we use the
+snakemake file `align_with_snap.rules`.  The workflow accepts
+quality-filtered FASTQ data, which should be placed in the directory
+given by `input_dir`.
+

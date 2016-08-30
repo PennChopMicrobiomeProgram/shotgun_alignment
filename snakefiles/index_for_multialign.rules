@@ -9,20 +9,15 @@ def get_assembly_ids_from_dirnames(assembly_dir):
     return [x.name for x in dir_path.iterdir() if x.is_dir()]
 
 default_config = {
-    "assembly_dir": "/home/kyle/BioData/shotgun_reference_genomes/bacteria",
-    "index_dir": "/home/kyle/index_data",
-    "testrun": False,
+    "assembly_dir": "reference_data",
+    "index_dir": "index_data",
     "split_db": 10,
 }
 update_config(default_config, config)
 config = default_config
 
-
-
 # Compute static values to use in rules
 ASSEMBLY_IDS = get_assembly_ids_from_dirnames(config["assembly_dir"])
-if config["testrun"]:
-    ASSEMBLY_IDS = ASSEMBLY_IDS[:20]
 ASSEMBLY_GROUPS = partition_assemblies(ASSEMBLY_IDS, config["split_db"])
 INDEX_FILENAMES = [
     "Genome",

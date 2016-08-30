@@ -13,14 +13,12 @@ def get_sample_ids_from_filenames(input_dir, suffix):
 
 
 default_config = {
-    "taxonomy_dir": "/home/kyle/Software/shotgun_alignment/",
-    "assembly_dir": "/home/kyle/BioData/shotgun_reference_genomes/bacteria",
-    "index_dir": "/home/kyle/index_data",
-    "input_dir": "/home/kyle/input_data",
-    "work_dir": "/home/kyle/work_data",
-    "output_dir": "/home/kyle/output_data",
-    "testrun": False,
-    "split_db": 10,
+    "taxonomy_dir": "taxonomy_data",
+    "assembly_dir": "reference_data",
+    "index_dir": "index_data",
+    "input_dir": "input_data",
+    "work_dir": "work_data",
+    "output_dir": "output_data",
 }
 update_config(default_config, config)
 config = default_config
@@ -80,7 +78,7 @@ rule get_taxa:
     shell:
         "resolve_taxa "
         "{config[index_dir]}/partition_refids.txt "
-        "{config[assembly_dir]}/../bacteria_assembly_summary.txt "
+        "{config[assembly_dir]}/bacteria_assembly_summary.txt "
         "< {input} > {output}"
 
 rule sort_alignments:

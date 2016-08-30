@@ -17,7 +17,6 @@ def parse_selected_assemblies(f):
 
 
 default_config = {
-    "biodata_dir": "~/BioData",
     "version": "0.0.1",
     "selected_assemblies": "bacteria_selected_assemblies.txt",
 }

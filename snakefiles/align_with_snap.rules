@@ -34,7 +34,7 @@ def iter_partition_ids():
 
 # Compute static values to use in rules
 PARTITION_IDS = list(iter_partition_ids())
-SAMPLE_IDS = get_sample_ids_from_filenames(config["input_dir"], "_R1.fastq")
+SAMPLE_IDS = get_sample_ids_from_filenames(config["input_dir"], "_R1.fastq.gz")
 
 
 
@@ -85,7 +85,7 @@ rule sort_alignments:
     input:
         config["work_dir"] + "/merged_sam_data/{sample_id}.sammin.unsorted"
     output:
-        config["work_dir"] + "/merged_sam_data/{sample_id}.sammin"
+        temp(config["work_dir"] + "/merged_sam_data/{sample_id}.sammin")
     shell:
         "sort < {input} > {output}"
 

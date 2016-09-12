@@ -80,12 +80,12 @@ def resolve_taxa_main(argv=None):
 
 def clean_fasta_main(argv=None):
     for line in sys.stdin:
-    if line.startswith(">"):
+        if line.startswith(">"):
             desc = line.split()[0]
             sys.stdout.write(desc)
             sys.stdout.write("\n")
-    else:
-        sys.stdout.write(line)
+        else:
+            sys.stdout.write(line)
 
 def convert_sam_main(argv=None):
     for line in sys.stdin:

@@ -9,7 +9,7 @@ from shotgun_alignment.ncbi_taxonomy import (
 )
 from shotgun_alignment.algorithm import reduce_taxa
 from shotgun_alignment.misc import parse_taxa_cts, parse_lca_cts
-
+from shotgun_alignment.parse import parse_fasta
 
 def replace_falsy(x, replacement="NA"):
     if x:

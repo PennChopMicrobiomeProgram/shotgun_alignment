@@ -48,11 +48,8 @@ rule zip_genomes:
 
 
 rule download_fna:
-    output: "bacteria/{assembly_id}/{assembly_id}_genomic.fna.gz"
+    output: "bacteria/{assembly_id}_genomic.fna.gz"
     run:
         assembly = ASSEMBLIES[wildcards.assembly_id]
         assembly_url = get_fna_url(assembly["ftp_path"])
-        shell(
-            "mkdir -p bacteria/{wildcards.assembly_id};"
-	    "curl --connect-timeout 10.0 --retry 10 " + assembly_url + " > {output}"
-	    )
+        shell("curl --connect-timeout 10.0 --retry 10 " + assembly_url + " > {output}")

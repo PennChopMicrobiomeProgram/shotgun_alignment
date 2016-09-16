@@ -4,9 +4,10 @@ from snakemake.utils import update_config
 
 from shotgun_alignment.assembly import partition_assemblies
 
-def get_assembly_ids_from_dirnames(assembly_dir):
+def get_assembly_ids(assembly_dir):
     dir_path = pathlib.Path(assembly_dir)
-    return [x.name for x in dir_path.iterdir() if x.is_dir()]
+    genome_fps = dir_path.glob("*_genomic.fna.gz")
+    return [x.name.replace("_genomic.fna.gz", "") for x in genome_fps]
 
 default_config = {
     "assembly_dir": "reference_data",
@@ -17,7 +18,7 @@ update_config(default_config, config)
 config = default_config
 
 # Compute static values to use in rules
-ASSEMBLY_IDS = get_assembly_ids_from_dirnames(config["assembly_dir"])
+ASSEMBLY_IDS = get_assembly_ids(config["assembly_dir"])
 ASSEMBLY_GROUPS = partition_assemblies(ASSEMBLY_IDS, config["split_db"])
 INDEX_FILENAMES = [
     "Genome",
@@ -62,12 +63,14 @@ rule snap_index:
 rule partition_genomes:
     input:
         lambda wildcards: expand(
-            config["assembly_dir"] + "/{assembly_id}/{assembly_id}_genomic_clean.fna",
+            config["assembly_dir"] + "/{assembly_id}_genomic_clean.fna",
             assembly_id=ASSEMBLY_GROUPS[wildcards.partition_id],
         )
     output:
         temp(config["index_dir"] + "/bacteria_{partition_id}/bacteria_{partition_id}.fna")
     run:
+        print(output)
+	print(input)
         for n, fp in enumerate(input):
             if n == 0:
                 os.system("cat {0} > {1}".format(fp, output))
@@ -76,17 +79,17 @@ rule partition_genomes:
 
 rule clean_genome:
     input:
-        config["assembly_dir"] + "/{assembly_id}/{assembly_id}_genomic.fna"
+        config["assembly_dir"] + "/{assembly_id}_genomic.fna"
     output:
-        temp(config["assembly_dir"] + "/{assembly_id}/{assembly_id}_genomic_clean.fna")
+        temp(config["assembly_dir"] + "/{assembly_id}_genomic_clean.fna")
     shell:
         "clean_fasta < {input} > {output}"
 
 rule unzip_genome:
     input:
-        config["assembly_dir"] + "/{assembly_id}/{assembly_id}_genomic.fna.gz"
+        config["assembly_dir"] + "/{assembly_id}_genomic.fna.gz"
     output:
-        temp(config["assembly_dir"] + "/{assembly_id}/{assembly_id}_genomic.fna")
+        temp(config["assembly_dir"] + "/{assembly_id}_genomic.fna")
     shell:
         "gunzip -c {input} > {output}"
 

@@ -1,5 +1,9 @@
+args <- commandArgs(trailingOnly=TRUE)
+input_fp <- args[1]
+output_fp <- args[2]
+
 b <- read.delim(
-  snakemake@input[[1]],
+  input_fp,
   skip=1, stringsAsFactors=F,
   na.strings = c("NA", "na", ""))
 colnames(b)[[1]] <- "assembly_accession"
@@ -20,5 +24,5 @@ additional_reps <- do.call(rbind, b_species_norep_selection)
 b_reduced <- rbind(reps, additional_reps)
 
 write.table(
-    b_reduced, snakemake@output[[1]],
+    b_reduced, output_fp,
     quote = F, sep="\t", row.names = F)

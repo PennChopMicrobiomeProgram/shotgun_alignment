@@ -17,4 +17,4 @@ rule download_assembly_stats:
 rule select_reference_genomes:
     input: "{group}_assembly_summary.txt"
     output: "{group}_selected_assemblies.txt"
-    script: "../select_bacterial_refs.R"
+    shell: "Rscript select_bacterial_refs.R {input} {output}"
